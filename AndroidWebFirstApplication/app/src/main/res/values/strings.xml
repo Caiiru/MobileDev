@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">AndroidFirstApplication</string>
+    <string name="chuckNorris">Norris</string>
 </resources>
