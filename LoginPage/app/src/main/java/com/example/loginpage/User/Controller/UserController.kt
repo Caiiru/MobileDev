@@ -1,5 +1,6 @@
 package com.example.loginpage.User.Controller
 
+import com.example.loginpage.User.Role
 import com.example.loginpage.User.Service.UserService
 import com.example.loginpage.UserDTO
 
@@ -12,7 +13,7 @@ class UserController (private val service:UserService) {
     }
 
     fun login(userName:String,password:String):UserDTO?{
-        val userToLogin = UserDTO(userName,password)
+        val userToLogin = UserDTO(userName,password, Role())
         return service.login(userToLogin)
     }
 
