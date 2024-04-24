@@ -32,24 +32,21 @@ import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.plcoding.cameraxguide.ui.theme.CameraXGuideTheme
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,7 +81,7 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxWidth(),
                             onBitmapClick = {bitmap ->
                                 Log.d("DEBUG", "Click on Photo")
-                                openEditActivity(bitmap)
+                                saveBitmapToFile(bitmap){filePath -> openEditActivity(filePath)}
                             }
 
 
@@ -192,15 +189,24 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun openEditActivity(bitmap: Bitmap){
+    private fun openEditActivity(imageFilePath:String){
         val intent = Intent(this,EditActivity::class.java)
-        intent.putExtra("bitmap",bitmap)
+        intent.putExtra("imageFilePath",imageFilePath)
         startActivity(intent)
     }
 
     private fun saveBitmapToFile(bitmap: Bitmap, onFileSaved:(String) -> Unit){
-
+        val fileName = "image_to_edit_${System.currentTimeMillis()}.png"
+        val directory = getExternalFilesDir(null)
+        val file= File(directory,fileName)
+        val fileOutupStream = FileOutputStream(file)
+        bitmap.compress(Bitmap.CompressFormat.PNG,100,fileOutupStream)
+        fileOutupStream.flush()
+        fileOutupStream.close()
+        onFileSaved(file.absolutePath)
+        Log.d("DEBUG", file.absolutePath)
     }
+
     private fun hasRequiredPermissions(): Boolean {
         return CAMERAX_PERMISSIONS.all {
             ContextCompat.checkSelfPermission(

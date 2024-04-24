@@ -7,33 +7,44 @@
     android:layout_height="match_parent"
     tools:context=".EditActivity">
 
-    <ImageView
-        android:id="@+id/imageView"
-        android:layout_width="394dp"
-        android:layout_height="438dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="30dp"
-        android:layout_marginEnd="9dp"
-        android:layout_marginBottom="263dp"
-        android:contentDescription="@string/Photo_Preview"
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:srcCompat="@drawable/ic_launcher_background"
-        tools:ignore="ImageContrastCheck" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <TextView
-        android:id="@+id/textView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="173dp"
-        android:layout_marginTop="9dp"
-        android:layout_marginEnd="180dp"
-        android:layout_marginBottom="2dp"
-        android:text="TextView"
-        app:layout_constraintBottom_toTopOf="@+id/imageView"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        <TextView
+            android:id="@+id/textView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="173dp"
+            android:layout_marginTop="9dp"
+            android:layout_marginEnd="180dp"
+            android:layout_marginBottom="2dp"
+            android:text="@string/textview" />
+
+        <ImageView
+            android:id="@+id/imageView"
+            android:layout_width="394dp"
+            android:layout_height="438dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="30dp"
+            android:layout_marginEnd="9dp"
+            android:layout_marginBottom="263dp"
+            android:contentDescription="@string/Photo_Preview"
+            app:srcCompat="@drawable/ic_launcher_background"
+            tools:ignore="ImageContrastCheck" />
+
+        <androidx.constraintlayout.utils.widget.ImageFilterView
+            android:id="@+id/imageFilterView"
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:src="@drawable/ic_launcher_background"
+            android:translationY="440dp"
+            tools:ignore="ImageContrastCheck" />
+
+    </FrameLayout>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
