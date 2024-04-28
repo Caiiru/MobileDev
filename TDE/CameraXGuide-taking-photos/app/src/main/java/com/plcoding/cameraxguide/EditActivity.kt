@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.os.Bundle
 import android.provider.MediaStore
 import android.widget.Toast
@@ -93,89 +94,103 @@ fun loadImage(filePath:String?):Bitmap?{
     return BitmapFactory.decodeFile(filePath)
 }
 /*
-fun applyFilterToBitmap(bitmap: Bitmap?, effect:Effect?,brightness:Float):Bitmap?{
-    if(bitmap == null)
-        return null
-    val outputBitmap = Bitmap.createBitmap(bitmap!!.width,bitmap.height,Bitmap.Config.ARGB_8888)
-    val canvas= Canvas(outputBitmap)
-    val paint = Paint()
-    when (effect){
-        Effect.Grayscale -> {
-            val colorMatrix = ColorMatrix()
-            colorMatrix.setToSaturation(0f)
-            paint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
-        }
-        Effect.Sepia -> {
-            val colorMatrix = ColorMatrix()
-            colorMatrix.set(ColorMatrix(floatArrayOf(
-                0.393f, 0.769f, 0.189f, 0f, 0f,
-                0.349f, 0.686f, 0.168f, 0f, 0f,
-                0.272f, 0.534f, 0.131f, 0f, 0f,
-                0f, 0f, 0f, 1f, 0f
-            )))
-            paint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
-        }
-        Effect.Negative -> {
-            val colorMatrix = ColorMatrix(floatArrayOf(
-                -1f, 0f, 0f, 0f, 255f, // Red
-                0f, -1f, 0f, 0f, 255f, // Green
-                0f, 0f, -1f, 0f, 255f, // Blue
-                0f, 0f, 0f, 1f, 0f // Alpha
-            ))
-            paint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
-        }
-        Effect.Brightness -> {
-            val colorMatrix = ColorMatrix()
-            colorMatrix.setToScale(brightness, brightness, brightness, 1f)
-            paint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
-        }
+fun applySobelEdgeDetection(bitmap: Bitmap):Bitmap{
+    val width = bitmap.width
+    val height = bitmap.height
+    val sobelMaskX = arrayOf(
+        intArrayOf(-1, 0, 1),
+        intArrayOf(-2, 0, 2),
+        intArrayOf(-1, 0, 1)
+    )
+    val sobelMaskY = arrayOf(
+        intArrayOf(-1, -2, -1),
+        intArrayOf(0, 0, 0),
+        intArrayOf(1, 2, 1)
+    )
 
-        null -> TODO()
+    val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+
+    for (y in 1 until height - 1) {
+        for (x in 1 until width - 1) {
+            var sumXRed = 0
+            var sumYRed = 0
+            var sumXGreen = 0
+            var sumYGreen = 0
+            var sumXBlue = 0
+            var sumYBlue = 0
+
+            for (j in -1..1) {
+                for (i in -1..1) {
+                    val pixel = bitmap.getPixel(x + i, y + j)
+                    val weightX = sobelMaskX[j + 1][i + 1]
+                    val weightY = sobelMaskY[j + 1][i + 1]
+
+                    sumXRed += Color.red(pixel) * weightX
+                    sumYRed += Color.red(pixel) * weightY
+                    sumXGreen += Color.green(pixel) * weightX
+                    sumYGreen += Color.green(pixel) * weightY
+                    sumXBlue += Color.blue(pixel) * weightX
+                    sumYBlue += Color.blue(pixel) * weightY
+                }
+            }
+
+            val magnitudeRed = (sqrt((sumXRed * sumXRed + sumYRed * sumYRed).toDouble()) / 8).toInt()
+            val magnitudeGreen = (sqrt((sumXGreen * sumXGreen + sumYGreen * sumYGreen).toDouble()) / 8).toInt()
+            val magnitudeBlue = (sqrt((sumXBlue * sumXBlue + sumYBlue * sumYBlue).toDouble()) / 8).toInt()
+
+            val magnitude = Color.rgb(
+                minOf(magnitudeRed, 255),
+                minOf(magnitudeGreen, 255),
+                minOf(magnitudeBlue, 255)
+            )
+
+            resultBitmap.setPixel(x, y, magnitude)
+        }
     }
-    canvas.drawBitmap(bitmap,0f,0f,paint)
-    return outputBitmap
+
+    return resultBitmap
 }
-*/
-/*
-fun applyFilterToBitmap(bitmap: Bitmap?, effect:Effect?,brightness:Float): Bitmap? {
-    if(bitmap == null || effect == null) return null
-
-    val matrix = ColorMatrix()
-
-    when (effect) {
-        Effect.Grayscale -> matrix.setToSaturation(0f)
-        Effect.Sepia -> {
-            ColorMatrix(floatArrayOf(
-                0.393f, 0.769f, 0.189f, 0f, 0f,
-                0.349f, 0.686f, 0.168f, 0f, 0f,
-                0.272f, 0.534f, 0.131f, 0f, 0f,
-                0f, 0f, 0f, 1f, 0f
-            ))
-        }
-        Effect.Negative -> {
-            ColorMatrix(floatArrayOf(
-                -1f, 0f, 0f, 0f, 255f, // Red
-                0f, -1f, 0f, 0f, 255f, // Green
-                0f, 0f, -1f, 0f, 255f, // Blue
-                0f, 0f, 0f, 1f, 0f // Alpha
-            ))
-        }
-        Effect.Brightness -> matrix.setToScale(brightness, brightness, brightness, 1f)
-    }
-
-    val paint = Paint().apply {
-        colorFilter = ColorFilter.colorMatrix(matrix)
-    }
-
-    val outputBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(outputBitmap)
-    canvas.drawBitmap(bitmap, 0f, 0f, paint)
-
-    return outputBitmap
-}
-
 
  */
+fun applySobelColorFilter(bitmap: Bitmap): ColorFilter {
+    val sobelMatrix = floatArrayOf(
+        -1f, 0f, 1f, 0f, 0f,
+        -2f, 0f, 2f, 0f, 0f,
+        -1f, 0f, 1f, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f
+    )
+
+    val colorMatrix = ColorMatrix(sobelMatrix)
+    return ColorFilter.colorMatrix(colorMatrix)
+}
+fun createEdgeDetectionColorFilter(bitmap: Bitmap): ColorFilter {
+    val sobelX = floatArrayOf(-1f, 0f, 1f, -2f, 0f, 2f, -1f, 0f, 1f)
+    val sobelY = floatArrayOf(-1f, -2f, -1f, 0f, 0f, 0f, 1f, 2f, 1f)
+
+    val outputBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+    for (x in 1 until bitmap.width - 1) {
+        for (y in 1 until bitmap.height - 1) {
+            var sumX = 0f
+            var sumY = 0f
+            for (i in -1..1) {
+                for (j in -1..1) {
+                    val pixel = bitmap.getPixel(x + i, y + j)
+                    val grayValue = Color.red(pixel) // Assuming grayscale image
+                    sumX += grayValue * sobelX[(i + 1) * 3 + j + 1]
+                    sumY += grayValue * sobelY[(i + 1) * 3 + j + 1]
+                }
+            }
+            val edgeValue = Math.sqrt((sumX * sumX + sumY * sumY).toDouble()).toInt()
+            val newPixel = Color.rgb(edgeValue, edgeValue, edgeValue)
+            outputBitmap.setPixel(x, y, newPixel)
+        }
+    }
+
+    return ColorFilter.colorMatrix(ColorMatrix().apply {
+        //setToSaturation(0f) // Convert to grayscale
+    })
+}
+
 
 fun applyFilterToBitmap(bitmap: Bitmap?, effect: Effect?, brightness: Float): Bitmap? {
     if (bitmap == null || effect == null) return null
@@ -271,6 +286,7 @@ fun EditActivityContent(imageFilePath: String?){
                     0f, 0f, -1f, 0f, 255f, // Blue
                     0f, 0f, 0f, 1f, 0f // Alpha
                 )))
+                Effect.Sobel -> createEdgeDetectionColorFilter(_bitmap!!)
                 Effect.None -> ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(1f,1f,1f,1f) })
                 Effect.Apply -> ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(1f,1f,1f,1f) })
                 else -> null
@@ -341,6 +357,16 @@ fun EditActivityContent(imageFilePath: String?){
                 },
                 Icons.Default.Gradient,
                 null
+            )
+            EffectButton(
+                    effect = Effect.Sobel,
+            selectedEffect = _selectedEffect,
+            onEffectSelected = {
+                _selectedEffect = it
+                showSlider = false
+            },
+            Icons.Default.Gradient,
+            null
             )
 
 
@@ -462,6 +488,7 @@ enum class Effect(val label:String){
     Sepia("Sepia"),
     Brightness("Brightness"),
     Negative("Negative"),
+    Sobel("Sobel"),
     Apply("Apply"),
     None("Undo")
 }
