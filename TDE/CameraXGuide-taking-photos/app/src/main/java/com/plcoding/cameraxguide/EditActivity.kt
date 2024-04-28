@@ -4,7 +4,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Color
 import android.os.Bundle
 import android.provider.MediaStore
 import android.widget.Toast
@@ -47,6 +46,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plcoding.cameraxguide.ui.theme.EditActivityTheme
+import org.opencv.android.Utils
+import org.opencv.core.Core
+import org.opencv.core.CvType
+import org.opencv.core.Mat
+import org.opencv.imgproc.Imgproc
 import java.io.OutputStream
 
 class EditActivity : ComponentActivity() {
@@ -93,105 +97,6 @@ fun saveBitmapToGallery(context: Context, bitmap: Bitmap?,folderName:String,file
 fun loadImage(filePath:String?):Bitmap?{
     return BitmapFactory.decodeFile(filePath)
 }
-/*
-fun applySobelEdgeDetection(bitmap: Bitmap):Bitmap{
-    val width = bitmap.width
-    val height = bitmap.height
-    val sobelMaskX = arrayOf(
-        intArrayOf(-1, 0, 1),
-        intArrayOf(-2, 0, 2),
-        intArrayOf(-1, 0, 1)
-    )
-    val sobelMaskY = arrayOf(
-        intArrayOf(-1, -2, -1),
-        intArrayOf(0, 0, 0),
-        intArrayOf(1, 2, 1)
-    )
-
-    val resultBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-
-    for (y in 1 until height - 1) {
-        for (x in 1 until width - 1) {
-            var sumXRed = 0
-            var sumYRed = 0
-            var sumXGreen = 0
-            var sumYGreen = 0
-            var sumXBlue = 0
-            var sumYBlue = 0
-
-            for (j in -1..1) {
-                for (i in -1..1) {
-                    val pixel = bitmap.getPixel(x + i, y + j)
-                    val weightX = sobelMaskX[j + 1][i + 1]
-                    val weightY = sobelMaskY[j + 1][i + 1]
-
-                    sumXRed += Color.red(pixel) * weightX
-                    sumYRed += Color.red(pixel) * weightY
-                    sumXGreen += Color.green(pixel) * weightX
-                    sumYGreen += Color.green(pixel) * weightY
-                    sumXBlue += Color.blue(pixel) * weightX
-                    sumYBlue += Color.blue(pixel) * weightY
-                }
-            }
-
-            val magnitudeRed = (sqrt((sumXRed * sumXRed + sumYRed * sumYRed).toDouble()) / 8).toInt()
-            val magnitudeGreen = (sqrt((sumXGreen * sumXGreen + sumYGreen * sumYGreen).toDouble()) / 8).toInt()
-            val magnitudeBlue = (sqrt((sumXBlue * sumXBlue + sumYBlue * sumYBlue).toDouble()) / 8).toInt()
-
-            val magnitude = Color.rgb(
-                minOf(magnitudeRed, 255),
-                minOf(magnitudeGreen, 255),
-                minOf(magnitudeBlue, 255)
-            )
-
-            resultBitmap.setPixel(x, y, magnitude)
-        }
-    }
-
-    return resultBitmap
-}
-
- */
-fun applySobelColorFilter(bitmap: Bitmap): ColorFilter {
-    val sobelMatrix = floatArrayOf(
-        -1f, 0f, 1f, 0f, 0f,
-        -2f, 0f, 2f, 0f, 0f,
-        -1f, 0f, 1f, 0f, 0f,
-        0f, 0f, 0f, 1f, 0f
-    )
-
-    val colorMatrix = ColorMatrix(sobelMatrix)
-    return ColorFilter.colorMatrix(colorMatrix)
-}
-fun createEdgeDetectionColorFilter(bitmap: Bitmap): ColorFilter {
-    val sobelX = floatArrayOf(-1f, 0f, 1f, -2f, 0f, 2f, -1f, 0f, 1f)
-    val sobelY = floatArrayOf(-1f, -2f, -1f, 0f, 0f, 0f, 1f, 2f, 1f)
-
-    val outputBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
-    for (x in 1 until bitmap.width - 1) {
-        for (y in 1 until bitmap.height - 1) {
-            var sumX = 0f
-            var sumY = 0f
-            for (i in -1..1) {
-                for (j in -1..1) {
-                    val pixel = bitmap.getPixel(x + i, y + j)
-                    val grayValue = Color.red(pixel) // Assuming grayscale image
-                    sumX += grayValue * sobelX[(i + 1) * 3 + j + 1]
-                    sumY += grayValue * sobelY[(i + 1) * 3 + j + 1]
-                }
-            }
-            val edgeValue = Math.sqrt((sumX * sumX + sumY * sumY).toDouble()).toInt()
-            val newPixel = Color.rgb(edgeValue, edgeValue, edgeValue)
-            outputBitmap.setPixel(x, y, newPixel)
-        }
-    }
-
-    return ColorFilter.colorMatrix(ColorMatrix().apply {
-        //setToSaturation(0f) // Convert to grayscale
-    })
-}
-
-
 fun applyFilterToBitmap(bitmap: Bitmap?, effect: Effect?, brightness: Float): Bitmap? {
     if (bitmap == null || effect == null) return null
 
@@ -208,6 +113,26 @@ fun applyFilterToBitmap(bitmap: Bitmap?, effect: Effect?, brightness: Float): Bi
     outputBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
 
     return outputBitmap
+}
+fun createEdgeDetectionColorFilter(bitmap: Bitmap): ColorFilter {
+    val mat = Mat(bitmap.height, bitmap.width, CvType.CV_8UC1)
+    Utils.bitmapToMat(bitmap, mat)
+
+    Imgproc.cvtColor(mat, mat, Imgproc.COLOR_BGR2GRAY)
+
+    val sobelX = Mat()
+    val sobelY = Mat()
+    Imgproc.Sobel(mat, sobelX, CvType.CV_16S, 1, 0, 3, 1.0, 0.0)
+    Imgproc.Sobel(mat, sobelY, CvType.CV_16S, 0, 1, 3, 1.0, 0.0)
+
+    val magnitude = Mat()
+    Core.addWeighted(sobelX, 0.5, sobelY, 0.5, 0.0, magnitude)
+
+    val colorMatrix = ColorMatrix().apply {
+        setToSaturation(0f) // Convert to grayscale
+    }
+
+    return ColorFilter.colorMatrix(colorMatrix)
 }
 
 private fun applyEffect(pixel: Int, effect: Effect, brightness: Float): Int {
@@ -358,18 +283,6 @@ fun EditActivityContent(imageFilePath: String?){
                 Icons.Default.Gradient,
                 null
             )
-            EffectButton(
-                    effect = Effect.Sobel,
-            selectedEffect = _selectedEffect,
-            onEffectSelected = {
-                _selectedEffect = it
-                showSlider = false
-            },
-            Icons.Default.Gradient,
-            null
-            )
-
-
 
         }
         Row(
@@ -377,18 +290,6 @@ fun EditActivityContent(imageFilePath: String?){
                 .padding(5.dp),
             horizontalArrangement = Arrangement.Center)
              {
-            /*
-            IconButton( //apply button
-                onClick = {
-                    _bitmap = applyFilterToBitmap(_bitmap,_selectedEffect,brightness)
-                    Log.d("EDIT", "applying EFFECT")
-                }) {
-                Icon(imageVector = Icons.Default.Check, contentDescription ="apply filter" )
-                Spacer(modifier = Modifier.padding(1.dp))
-                Text(text = "apply filter")
-            }
-
-             */
 
             EffectButton(
                 effect = Effect.Apply,

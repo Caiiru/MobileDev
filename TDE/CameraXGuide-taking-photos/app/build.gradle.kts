@@ -82,4 +82,6 @@ dependencies {
 
     implementation("androidx.camera:camera-view:$cameraxVersion")
     implementation("androidx.camera:camera-extensions:$cameraxVersion")
+
+    implementation("org.opencv:opencv:4.9.0")
 }
