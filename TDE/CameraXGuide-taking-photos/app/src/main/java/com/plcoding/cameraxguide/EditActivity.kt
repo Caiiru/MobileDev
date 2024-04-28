@@ -1,10 +1,12 @@
 package com.plcoding.cameraxguide
 
+import android.content.ContentValues
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Color
 import android.os.Bundle
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -19,8 +21,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Gradient
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,13 +40,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plcoding.cameraxguide.ui.theme.EditActivityTheme
-import java.io.File
-import java.io.FileOutputStream
+import java.io.OutputStream
 
 class EditActivity : ComponentActivity() {
 
@@ -59,15 +63,28 @@ class EditActivity : ComponentActivity() {
 
             }
         }
+    }
+}
 
-        fun saveBitmap(bitmap: Bitmap, filename:String){
-            val fileName = "image_to_edit_${System.currentTimeMillis()}.png"
-            val directory = getExternalFilesDir(null)
-            val file= File(directory,fileName)
-            val fileOutupStream = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.PNG,100, fileOutupStream)
-            fileOutupStream.close()
+fun saveBitmapToGallery(context: Context, bitmap: Bitmap?,folderName:String,fileName:String){
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/$folderName")
+        put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+        put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+        put(MediaStore.Images.Media.IS_PENDING,1)
+    }
+    val resolver = context.contentResolver
+    val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+    uri?.let{
+        val outputstream:OutputStream? = resolver.openOutputStream(it)
+        outputstream?.use { stream ->
+            bitmap?.compress(Bitmap.CompressFormat.PNG,100,stream)
+
         }
+        values.clear()
+        values.put(MediaStore.Images.Media.IS_PENDING,0)
+        resolver.update(it,values,null,null)
+        Toast.makeText(context,"IMAGE SAVED",Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -75,7 +92,7 @@ class EditActivity : ComponentActivity() {
 fun loadImage(filePath:String?):Bitmap?{
     return BitmapFactory.decodeFile(filePath)
 }
-
+/*
 fun applyFilterToBitmap(bitmap: Bitmap?, effect:Effect?,brightness:Float):Bitmap?{
     if(bitmap == null)
         return null
@@ -118,9 +135,97 @@ fun applyFilterToBitmap(bitmap: Bitmap?, effect:Effect?,brightness:Float):Bitmap
     canvas.drawBitmap(bitmap,0f,0f,paint)
     return outputBitmap
 }
+*/
+/*
+fun applyFilterToBitmap(bitmap: Bitmap?, effect:Effect?,brightness:Float): Bitmap? {
+    if(bitmap == null || effect == null) return null
 
-private fun Canvas.drawBitmap(bitmap: Bitmap, fl: Float, fl1: Float, paint: Paint) {
-    this.drawBitmap(bitmap,fl,fl1,paint)
+    val matrix = ColorMatrix()
+
+    when (effect) {
+        Effect.Grayscale -> matrix.setToSaturation(0f)
+        Effect.Sepia -> {
+            ColorMatrix(floatArrayOf(
+                0.393f, 0.769f, 0.189f, 0f, 0f,
+                0.349f, 0.686f, 0.168f, 0f, 0f,
+                0.272f, 0.534f, 0.131f, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f
+            ))
+        }
+        Effect.Negative -> {
+            ColorMatrix(floatArrayOf(
+                -1f, 0f, 0f, 0f, 255f, // Red
+                0f, -1f, 0f, 0f, 255f, // Green
+                0f, 0f, -1f, 0f, 255f, // Blue
+                0f, 0f, 0f, 1f, 0f // Alpha
+            ))
+        }
+        Effect.Brightness -> matrix.setToScale(brightness, brightness, brightness, 1f)
+    }
+
+    val paint = Paint().apply {
+        colorFilter = ColorFilter.colorMatrix(matrix)
+    }
+
+    val outputBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(outputBitmap)
+    canvas.drawBitmap(bitmap, 0f, 0f, paint)
+
+    return outputBitmap
+}
+
+
+ */
+
+fun applyFilterToBitmap(bitmap: Bitmap?, effect: Effect?, brightness: Float): Bitmap? {
+    if (bitmap == null || effect == null) return null
+
+    val width = bitmap.width
+    val height = bitmap.height
+    val pixels = IntArray(width * height)
+    bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+
+    for (i in pixels.indices) {
+        pixels[i] = applyEffect(pixels[i], effect, brightness)
+    }
+
+    val outputBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    outputBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+
+    return outputBitmap
+}
+
+private fun applyEffect(pixel: Int, effect: Effect, brightness: Float): Int {
+    val alpha = pixel shr 24 and 0xff
+    val red = pixel shr 16 and 0xff
+    val green = pixel shr 8 and 0xff
+    val blue = pixel and 0xff
+
+    return when (effect) {
+        Effect.Grayscale -> {
+            val gray = (0.3 * red + 0.59 * green + 0.11 * blue).toInt()
+            (alpha shl 24) or (gray shl 16) or (gray shl 8) or gray
+        }
+        Effect.Sepia -> {
+            val newRed = (0.393 * red + 0.769 * green + 0.189 * blue).toInt().coerceAtMost(255)
+            val newGreen = (0.349 * red + 0.686 * green + 0.168 * blue).toInt().coerceAtMost(255)
+            val newBlue = (0.272 * red + 0.534 * green + 0.131 * blue).toInt().coerceAtMost(255)
+            (alpha shl 24) or (newRed shl 16) or (newGreen shl 8) or newBlue
+        }
+        Effect.Negative -> {
+            val newRed = 255 - red
+            val newGreen = 255 - green
+            val newBlue = 255 - blue
+            (alpha shl 24) or (newRed shl 16) or (newGreen shl 8) or newBlue
+        }
+        Effect.Brightness -> {
+            val newRed = (red * brightness).toInt().coerceIn(0, 255)
+            val newGreen = (green * brightness).toInt().coerceIn(0, 255)
+            val newBlue = (blue * brightness).toInt().coerceIn(0, 255)
+            (alpha shl 24) or (newRed shl 16) or (newGreen shl 8) or newBlue
+        }
+        else -> pixel
+    }
 }
 
 
@@ -137,7 +242,7 @@ fun EditActivityContent(imageFilePath: String?){
 
     Column (
         modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.Start
+        horizontalAlignment = Alignment.CenterHorizontally
     ){
         Text(
             text = "Modo Edição",
@@ -166,8 +271,11 @@ fun EditActivityContent(imageFilePath: String?){
                     0f, 0f, -1f, 0f, 255f, // Blue
                     0f, 0f, 0f, 1f, 0f // Alpha
                 )))
+                Effect.None -> ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(1f,1f,1f,1f) })
+                Effect.Apply -> ColorFilter.colorMatrix(ColorMatrix().apply { setToScale(1f,1f,1f,1f) })
                 else -> null
             }
+
 
             Image(bitmap = _bitmap!!.asImageBitmap(),
                 contentDescription = "Bitmap",
@@ -175,6 +283,10 @@ fun EditActivityContent(imageFilePath: String?){
                 modifier = Modifier
                     .size(width = 500.dp, height = 400.dp)
                     .padding(8.dp))
+
+
+
+
 
             if(showSlider) {
                 Slider(
@@ -194,7 +306,10 @@ fun EditActivityContent(imageFilePath: String?){
                 onEffectSelected = {
                     _selectedEffect = it
                     showSlider = false
-                }
+                },
+                Icons.Default.Gradient,
+                null
+
 
             )
             EffectButton(
@@ -203,7 +318,9 @@ fun EditActivityContent(imageFilePath: String?){
                 onEffectSelected = {
                     _selectedEffect = it
                     showSlider = false
-                }
+                },
+                Icons.Default.Gradient,
+                null
             )
             EffectButton(
                 effect = Effect.Brightness,
@@ -211,7 +328,9 @@ fun EditActivityContent(imageFilePath: String?){
                 onEffectSelected = {
                     _selectedEffect = it
                     showSlider = true
-                }
+                },
+                Icons.Default.Gradient,
+                null
             )
             EffectButton(
                 effect = Effect.Negative,
@@ -219,21 +338,85 @@ fun EditActivityContent(imageFilePath: String?){
                 onEffectSelected = {
                     _selectedEffect = it
                     showSlider = false
-                }
+                },
+                Icons.Default.Gradient,
+                null
             )
 
 
+
         }
+        Row(
+            modifier = Modifier
+                .padding(5.dp),
+            horizontalArrangement = Arrangement.Center)
+             {
+            /*
+            IconButton( //apply button
+                onClick = {
+                    _bitmap = applyFilterToBitmap(_bitmap,_selectedEffect,brightness)
+                    Log.d("EDIT", "applying EFFECT")
+                }) {
+                Icon(imageVector = Icons.Default.Check, contentDescription ="apply filter" )
+                Spacer(modifier = Modifier.padding(1.dp))
+                Text(text = "apply filter")
+            }
 
-        IconButton( //apply button
-            onClick = {
-                _bitmap = applyFilterToBitmap(_bitmap,_selectedEffect,brightness)
+             */
 
-            }) {
-            Icon(imageVector = Icons.Default.Check, contentDescription ="apply filter" )
-            Text(text = "apply filter")
+            EffectButton(
+                effect = Effect.Apply,
+                selectedEffect = _selectedEffect,
+                onEffectSelected = {
+                    _bitmap = applyFilterToBitmap(_bitmap,_selectedEffect,brightness)
+                    _selectedEffect = it
+                    showSlider = false
+                },
+                Icons.Default.CheckCircle,
+                "${_selectedEffect?.label} applied"
+            )
+            EffectButton(
+                effect = Effect.None,
+                selectedEffect = _selectedEffect,
+                onEffectSelected = {
+                    _selectedEffect = it
+                    showSlider = false
+                },
+                Icons.Default.Undo,
+                "Undo"
+            )
         }
+        SaveButton(_bitmap = _bitmap, folderName = "Downloads", fileName ="ImageSaved" )
 
+
+
+    }
+}
+@Composable
+fun SaveButton(
+    _bitmap: Bitmap?,
+    folderName: String,
+    fileName: String
+){
+    val context = LocalContext.current
+    Column(modifier = Modifier.padding(5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally){
+            IconButton(
+                onClick = { saveBitmapToGallery(
+                    context = context,
+                    bitmap = _bitmap,
+                    folderName = folderName,
+                    fileName = fileName
+                )},
+                modifier = Modifier.padding(1.dp)
+            ){
+                Icon(imageVector = Icons.Default.Save, contentDescription = "SaveButton")
+            }
+        Spacer(modifier = Modifier.padding(1.dp))
+        Text(
+            modifier = Modifier.paddingFromBaseline(top = 5.dp),
+            text = "Save Image",
+            fontSize=14.sp,)
     }
 }
 
@@ -241,20 +424,27 @@ fun EditActivityContent(imageFilePath: String?){
 fun EffectButton(
     effect:Effect,
     selectedEffect: Effect?,
-    onEffectSelected:(Effect) -> Unit
+    onEffectSelected:(Effect) -> Unit,
+    icon:ImageVector,
+    displayMessage:String?
 ){
+    val context = LocalContext.current
     Column(
         modifier = Modifier
-            .padding(16.dp),
+            .padding(5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
 
         ) {
         IconButton(
-            onClick = {onEffectSelected(effect)},
+            onClick = {
+                onEffectSelected(effect)
+                if(displayMessage!=null)
+                    Toast.makeText(context,displayMessage,Toast.LENGTH_SHORT).show()
+                      },
             modifier = Modifier.padding(8.dp)
 
         ){
-            Icon(imageVector = Icons.Default.Gradient, contentDescription = "Effect", Modifier.size(100.dp))
+            Icon(imageVector = icon, contentDescription = "Effect", Modifier.size(100.dp))
 
         }
         Spacer(modifier = Modifier.height(1.dp))
@@ -264,9 +454,6 @@ fun EffectButton(
             fontSize=14.sp,
         )
     }
-
-
-
 }
 
 
@@ -274,20 +461,7 @@ enum class Effect(val label:String){
     Grayscale("Grayscale"),
     Sepia("Sepia"),
     Brightness("Brightness"),
-    Negative("Negative")
-}
-
-fun applyBrightness(bitmap: Bitmap, factor:Float):Bitmap{
-    val outputBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
-    for (x in 0 until bitmap.width) {
-        for (y in 0 until bitmap.height) {
-            val pixel = bitmap.getPixel(x, y)
-            val red = Color.red(pixel) * factor
-            val green = Color.green(pixel) * factor
-            val blue = Color.blue(pixel) * factor
-            val newPixel = Color.rgb(red.toInt(), green.toInt(), blue.toInt())
-            outputBitmap.setPixel(x, y, newPixel)
-        }
-    }
-    return outputBitmap
+    Negative("Negative"),
+    Apply("Apply"),
+    None("Undo")
 }
