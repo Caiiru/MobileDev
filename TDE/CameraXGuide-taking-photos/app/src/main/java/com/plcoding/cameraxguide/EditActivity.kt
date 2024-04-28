@@ -2,6 +2,8 @@ package com.plcoding.cameraxguide
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,10 +36,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plcoding.cameraxguide.ui.theme.EditActivityTheme
+import java.io.File
+import java.io.FileOutputStream
 
 class EditActivity : ComponentActivity() {
 
@@ -54,10 +59,69 @@ class EditActivity : ComponentActivity() {
 
             }
         }
+
+        fun saveBitmap(bitmap: Bitmap, filename:String){
+            val fileName = "image_to_edit_${System.currentTimeMillis()}.png"
+            val directory = getExternalFilesDir(null)
+            val file= File(directory,fileName)
+            val fileOutupStream = FileOutputStream(file)
+            bitmap.compress(Bitmap.CompressFormat.PNG,100, fileOutupStream)
+            fileOutupStream.close()
+        }
     }
 }
 
 
+fun loadImage(filePath:String?):Bitmap?{
+    return BitmapFactory.decodeFile(filePath)
+}
+
+fun applyFilterToBitmap(bitmap: Bitmap?, effect:Effect?,brightness:Float):Bitmap?{
+    if(bitmap == null)
+        return null
+    val outputBitmap = Bitmap.createBitmap(bitmap!!.width,bitmap.height,Bitmap.Config.ARGB_8888)
+    val canvas= Canvas(outputBitmap)
+    val paint = Paint()
+    when (effect){
+        Effect.Grayscale -> {
+            val colorMatrix = ColorMatrix()
+            colorMatrix.setToSaturation(0f)
+            paint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
+        }
+        Effect.Sepia -> {
+            val colorMatrix = ColorMatrix()
+            colorMatrix.set(ColorMatrix(floatArrayOf(
+                0.393f, 0.769f, 0.189f, 0f, 0f,
+                0.349f, 0.686f, 0.168f, 0f, 0f,
+                0.272f, 0.534f, 0.131f, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f
+            )))
+            paint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
+        }
+        Effect.Negative -> {
+            val colorMatrix = ColorMatrix(floatArrayOf(
+                -1f, 0f, 0f, 0f, 255f, // Red
+                0f, -1f, 0f, 0f, 255f, // Green
+                0f, 0f, -1f, 0f, 255f, // Blue
+                0f, 0f, 0f, 1f, 0f // Alpha
+            ))
+            paint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
+        }
+        Effect.Brightness -> {
+            val colorMatrix = ColorMatrix()
+            colorMatrix.setToScale(brightness, brightness, brightness, 1f)
+            paint.colorFilter = ColorFilter.colorMatrix(colorMatrix)
+        }
+
+        null -> TODO()
+    }
+    canvas.drawBitmap(bitmap,0f,0f,paint)
+    return outputBitmap
+}
+
+private fun Canvas.drawBitmap(bitmap: Bitmap, fl: Float, fl1: Float, paint: Paint) {
+    this.drawBitmap(bitmap,fl,fl1,paint)
+}
 
 
 @Composable
@@ -67,6 +131,7 @@ fun EditActivityContent(imageFilePath: String?){
     }
     var brightness by remember { mutableStateOf(1f) }
     var showSlider by remember { mutableStateOf(false) }
+    var _bitmap by remember { mutableStateOf<Bitmap?>(loadImage(imageFilePath)) }
 
 
 
@@ -80,9 +145,9 @@ fun EditActivityContent(imageFilePath: String?){
         )
         Spacer(modifier = Modifier.height(1.dp))
 
-        var _bitmap = BitmapFactory.decodeFile(imageFilePath)
+        //var _bitmap = BitmapFactory.decodeFile(imageFilePath)
         imageFilePath?.let{
-                filePath -> val _bitmap = BitmapFactory.decodeFile(filePath)
+
 
 
             val colorFilter = when (_selectedEffect) {
@@ -100,12 +165,11 @@ fun EditActivityContent(imageFilePath: String?){
                     0f, -1f, 0f, 0f, 255f, // Green
                     0f, 0f, -1f, 0f, 255f, // Blue
                     0f, 0f, 0f, 1f, 0f // Alpha
-                ))
-                )
+                )))
                 else -> null
             }
 
-            Image(bitmap = _bitmap.asImageBitmap(),
+            Image(bitmap = _bitmap!!.asImageBitmap(),
                 contentDescription = "Bitmap",
                 colorFilter = colorFilter,
                 modifier = Modifier
@@ -163,30 +227,7 @@ fun EditActivityContent(imageFilePath: String?){
 
         IconButton( //apply button
             onClick = {
-                // Apply the selected effect to the image
-                val colorFilter = when (_selectedEffect) {
-                    Effect.Grayscale -> ColorFilter.colorMatrix(ColorMatrix().apply {
-                        setToSaturation(0f)
-                    })
-                    Effect.Sepia -> ColorFilter.colorMatrix(ColorMatrix().apply {
-                        setToScale(1f, 1f, 0.8f, 1f) // Adjust values for sepia effect
-                    })
-                    Effect.Negative -> ColorFilter.colorMatrix(ColorMatrix(floatArrayOf(
-                        -1f, 0f, 0f, 0f, 255f, // Red
-                        0f, -1f, 0f, 0f, 255f, // Green
-                        0f, 0f, -1f, 0f, 255f, // Blue
-                        0f, 0f, 0f, 1f, 0f // Alpha
-                    )))
-                    Effect.Brightness -> ColorFilter.colorMatrix(ColorMatrix().apply {
-                        setToScale(brightness, brightness, brightness, 1f) // Adjust brightness
-                    })
-                    else -> null
-                }
-
-                val filteredBitmap = _bitmap.copy(Bitmap.Config.ARGB_8888,true)
-                _bitmap = filteredBitmap
-
-
+                _bitmap = applyFilterToBitmap(_bitmap,_selectedEffect,brightness)
 
             }) {
             Icon(imageVector = Icons.Default.Check, contentDescription ="apply filter" )
@@ -234,4 +275,19 @@ enum class Effect(val label:String){
     Sepia("Sepia"),
     Brightness("Brightness"),
     Negative("Negative")
+}
+
+fun applyBrightness(bitmap: Bitmap, factor:Float):Bitmap{
+    val outputBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+    for (x in 0 until bitmap.width) {
+        for (y in 0 until bitmap.height) {
+            val pixel = bitmap.getPixel(x, y)
+            val red = Color.red(pixel) * factor
+            val green = Color.green(pixel) * factor
+            val blue = Color.blue(pixel) * factor
+            val newPixel = Color.rgb(red.toInt(), green.toInt(), blue.toInt())
+            outputBitmap.setPixel(x, y, newPixel)
+        }
+    }
+    return outputBitmap
 }
